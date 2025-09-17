@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "universal-db-mcp"
+version = "0.1.0"
+description = "Highly configurable MCP server for executing SQL across multiple database backends"
+authors = [{name = "Example Author"}]
+requires-python = ">=3.11"
+dependencies = [
+    "fastmcp>=2.12.3",
+    "sqlalchemy>=2.0.43",
+    "pydantic>=2.11.0",
+    "pyyaml>=6.0.0",
+]
+readme = "README.md"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+addopts = "-ra"
