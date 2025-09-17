@@ -1,0 +1,42 @@
+version: "3.9"
+
+x-server-base: &server-base
+  environment:
+    UNIVERSAL_DB_MCP_CONFIG: ${UNIVERSAL_DB_MCP_CONFIG:-/app/config/default.yaml}
+  ports:
+    - "${HTTP_PORT:-8000}:8000"
+    - "${SSE_PORT:-8001}:8001"
+
+services:
+  server:
+    <<: *server-base
+    build:
+      context: .
+      args:
+        INSTALL_DEV: "false"
+    image: universal-db-mcp:latest
+    command: ["--protocols", "http", "sse"]
+    volumes:
+      - ./config:/app/config
+    profiles: ["dev"]
+
+  server-prod:
+    <<: *server-base
+    image: universal-db-mcp:latest
+    command: ["--protocols", "http", "sse"]
+    restart: unless-stopped
+    profiles: ["prod"]
+
+  tests:
+    build:
+      context: .
+      args:
+        INSTALL_DEV: "true"
+    image: universal-db-mcp:test
+    command: ["pytest", "-q"]
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - ./config:/app/config
+      - ./tests:/app/tests
+    profiles: ["test"]

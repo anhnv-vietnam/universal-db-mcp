@@ -1,0 +1,77 @@
+# Default configuration for the Universal DB MCP server.
+# Values may be overridden by setting the UNIVERSAL_DB_MCP_CONFIG environment variable
+# to an alternative YAML/JSON/TOML file. Strings support standard environment variable
+# substitution using the ${VAR} or ${VAR:-default} syntax.
+
+server:
+  name: "Universal DB MCP"
+  version: "0.1.0"
+  instructions: |
+    Provide helpful, well-formatted SQL query results. Prefer parameterised queries and
+    avoid destructive operations unless explicitly requested. Use the configured query
+    templates when they match the user's intent.
+  metadata:
+    owner: "Example Team"
+    support: "support@example.com"
+  protocols:
+    - stdio
+    - http
+    - sse
+
+http:
+  host: "127.0.0.1"
+  port: 8000
+  message_path: "/messages/"
+  streamable_http_path: "/mcp"
+  stateless_http: false
+  basic_auth:
+    enabled: false
+    username_env: "UNIVERSAL_DB_MCP_HTTP_USER"
+    password_env: "UNIVERSAL_DB_MCP_HTTP_PASSWORD"
+
+sse:
+  host: "127.0.0.1"
+  port: 8001
+  path: "/sse"
+
+# The set of databases that tools may reference.
+databases:
+  - name: "analytics"
+    type: "postgresql"
+    # For local development we default to an on-disk SQLite database. Production deployments
+    # should replace this with a driver specific URL such as:
+    #   oracle+cx_oracle://user:password@host:1521/service
+    connection_url: "${UNIVERSAL_DB_MCP_DB_ANALYTICS:-sqlite+pysqlite:///./analytics.db}"
+    pool:
+      enabled: true
+      size: 5
+      max_overflow: 10
+      timeout: 30
+    query_templates:
+      list_customers: |
+        SELECT id, name, total_spend
+        FROM customers
+        WHERE total_spend >= :minimum_spend
+        ORDER BY total_spend DESC
+
+# Tools exposed by the server. Each tool may reference one or more query templates.
+tools:
+  - name: "run_sql"
+    title: "Execute SQL"
+    description: |
+      Run parameterised SQL queries across the configured databases. When possible, prefer
+      providing a template name and parameters to avoid unsafe string interpolation.
+    database: "analytics"
+    allow_arbitrary_queries: true
+    supported_databases: ["analytics"]
+    output_formats: ["json", "csv"]
+    default_output_format: "json"
+    metadata:
+      category: "database"
+      maturity: "beta"
+    query_templates:
+      high_spenders: |
+        SELECT id, name, total_spend
+        FROM customers
+        WHERE total_spend >= :minimum_spend
+        ORDER BY total_spend DESC
