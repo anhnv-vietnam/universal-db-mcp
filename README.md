@@ -37,6 +37,46 @@ database connections are managed through a shared abstraction layer.
 
    The CLI flags can override the protocols declared in the configuration file when you need to experiment locally.
 
+## Containerised usage
+
+Container images are provided for both local development and production-style deployments. The default image exposes
+the HTTP transport on port `8000` and SSE on `8001`.
+
+### Build & run locally
+
+```bash
+docker compose --profile dev up --build server
+```
+
+This profile mounts the local `config/` directory so you can iterate on configuration without rebuilding the image. You
+can override the exposed ports via `HTTP_PORT`/`SSE_PORT` environment variables.
+
+### Run tests inside a container
+
+```bash
+docker compose --profile test run --rm tests
+```
+
+The `tests` profile installs the development dependencies (`.[dev]`) and executes the pytest suite in an isolated
+environment.
+
+### Production deployment
+
+Build and push the runtime image once:
+
+```bash
+docker build -t universal-db-mcp:latest .
+```
+
+Run the production profile which reuses the published image and keeps the container alive across restarts:
+
+```bash
+docker compose --profile prod up -d server-prod
+```
+
+Custom configuration can be supplied by mounting a file or overriding the `UNIVERSAL_DB_MCP_CONFIG` environment
+variable.
+
 ## Testing
 
 ```bash
