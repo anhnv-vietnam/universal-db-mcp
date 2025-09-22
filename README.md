@@ -185,4 +185,4 @@ production clusters.
 
 ## License
 
-Released under the terms of the [MIT License](LICENSE).
+Released under the terms of the [Apache-2.0 license](LICENSE).
