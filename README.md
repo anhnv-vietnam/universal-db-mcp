@@ -65,7 +65,10 @@ Bundled tool definitions (from `config/default.yaml`):
   `high_spenders` template with a configurable `minimum_spend` parameter.
 - `inspect_testing_records`: Read-only accessor for the SQLite `testing` database. It exposes canned templates such as
   `list_test_records` and `list_test_records_by_category`.
+<<<<<<< HEAD
 - `test_anhnv176`: Demonstrates a CSV-first workflow by returning the entire `test_records` table from the testing DB.
+=======
+>>>>>>> eb6dad7 (Set up environment for testing, change output format, add k8s manifest and update README.md)
 
 ## Usage
 

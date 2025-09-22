@@ -114,6 +114,7 @@ tools:
         SELECT id, name, category, value, created_at
         FROM test_records
         WHERE category = :category
+<<<<<<< HEAD
         ORDER BY created_at DESC
   - name: "test_anhnv176"
     title: "List Test Records"
@@ -129,3 +130,6 @@ tools:
     metadata:
       category: "database"
       maturity: "alpha"
+=======
+        ORDER BY created_at DESC
+>>>>>>> eb6dad7 (Set up environment for testing, change output format, add k8s manifest and update README.md)
