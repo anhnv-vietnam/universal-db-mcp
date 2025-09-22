@@ -1,0 +1,114 @@
+# Test configuration targeting the Docker Compose MySQL service.
+# Requires a MySQL-compatible DBAPI such as PyMySQL (install via `pip install pymysql`).
+
+server:
+  name: "Universal DB MCP (MySQL Test)"
+  version: "0.1.0"
+  instructions: |
+    Provide helpful, well-formatted SQL query results. Prefer parameterised queries and
+    avoid destructive operations unless explicitly requested.
+  metadata:
+    owner: "QA Team"
+    environment: "mysql-test"
+  protocols:
+    - stdio
+    - http
+    - sse
+
+http:
+  host: "0.0.0.0"
+  port: 8000
+  message_path: "/messages/"
+  streamable_http_path: "/mcp"
+  stateless_http: false
+
+sse:
+  host: "0.0.0.0"
+  port: 8001
+  path: "/sse"
+
+# Databases exposed to tools in this configuration.
+databases:
+  - name: "analytics"
+    type: "mysql"
+    connection_url: "${UNIVERSAL_DB_MCP_DB_ANALYTICS:-mysql+pymysql://app_user:app_password@mysql:3306/sample_db}"
+    pool:
+      enabled: true
+      size: 5
+      max_overflow: 10
+      timeout: 30
+    metadata:
+      environment: "mysql-test"
+    query_templates:
+      list_customers: |
+        SELECT id, name, email, total_spend, last_purchase, loyalty_tier
+        FROM customers
+        ORDER BY total_spend DESC
+      high_value_customers: |
+        SELECT id, name, email, total_spend, last_purchase, loyalty_tier
+        FROM customers
+        WHERE total_spend >= :minimum_spend
+        ORDER BY total_spend DESC
+      top_products: |
+        SELECT id, name, category, total_sales, last_updated
+        FROM top_products
+        ORDER BY total_sales DESC
+
+  - name: "testing"
+    type: "sqlite"
+    connection_url: "${UNIVERSAL_DB_MCP_DB_TESTING:-sqlite+pysqlite:////app/config/testing.db}"
+    pool:
+      enabled: false
+    metadata:
+      environment: "regression"
+    query_templates:
+      list_test_records: |
+        SELECT id, name, category, value, created_at
+        FROM test_records
+        ORDER BY created_at DESC
+
+# Tools tuned for the MySQL-backed analytics database.
+tools:
+  - name: "run_sql"
+    title: "Execute SQL"
+    description: "Run SQL queries across the analytics MySQL database."
+    database: "analytics"
+    allow_arbitrary_queries: true
+    supported_databases: ["analytics", "testing"]
+    output_formats: ["json", "csv"]
+    default_output_format: "json"
+    metadata:
+      category: "database"
+      environment: "mysql-test"
+    default_template: "high_value_customers"
+    default_parameters:
+      minimum_spend: 500
+    query_templates:
+      list_customers: |
+        SELECT id, name, email, total_spend, last_purchase, loyalty_tier
+        FROM customers
+        ORDER BY total_spend DESC
+      high_value_customers: |
+        SELECT id, name, email, total_spend, last_purchase, loyalty_tier
+        FROM customers
+        WHERE total_spend >= :minimum_spend
+        ORDER BY total_spend DESC
+      top_products: |
+        SELECT id, name, category, total_sales, last_updated
+        FROM top_products
+        ORDER BY total_sales DESC
+
+  - name: "inspect_testing_records"
+    title: "List Test Records"
+    description: "Inspect regression fixtures stored in the SQLite testing database."
+    database: "testing"
+    allow_arbitrary_queries: false
+    supported_databases: ["testing"]
+    output_formats: ["json", "csv"]
+    default_output_format: "json"
+    default_template: "list_test_records"
+    query_templates:
+      list_test_records: |
+        SELECT id, name, category, value, created_at
+        FROM test_records
+        ORDER BY created_at DESC

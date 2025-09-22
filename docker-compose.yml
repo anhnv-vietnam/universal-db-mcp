@@ -15,7 +15,10 @@ services:
       args:
         INSTALL_DEV: "false"
     image: universal-db-mcp:latest
-    command: ["--protocols", "http", "sse"]
+    command: ["--protocols", "http", "sse", "--config", "/app/config/default.test.yaml"]
+    depends_on:
+      mysql:
+        condition: service_healthy
     volumes:
       - ./config:/app/config
     profiles: ["dev"]
@@ -27,16 +30,41 @@ services:
     restart: unless-stopped
     profiles: ["prod"]
 
+  mysql:
+    image: mysql:8.2
+    container_name: universal-db-mcp-mysql
+    environment:
+      MYSQL_DATABASE: "sample_db"
+      MYSQL_ROOT_PASSWORD: "root_password"
+      MYSQL_USER: "app_user"
+      MYSQL_PASSWORD: "app_password"
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./config/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    profiles: ["db", "dev", "test"]
+
   tests:
     build:
       context: .
       args:
         INSTALL_DEV: "true"
     image: universal-db-mcp:test
-    command: ["pytest", "-q"]
+    entrypoint: ["pytest"]
+    command: ["-q"]
     environment:
       PYTHONDONTWRITEBYTECODE: "1"
     volumes:
       - ./config:/app/config
       - ./tests:/app/tests
     profiles: ["test"]
+
+volumes:
+  mysql-data:

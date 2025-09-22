@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -16,6 +17,10 @@ except ModuleNotFoundError:  # pragma: no cover - fallback for older interpreter
 
 
 ALLOWED_PROTOCOLS = {"stdio", "http", "sse"}
+
+_ENV_PLACEHOLDER_PATTERN = re.compile(
+    r"\$\{(?P<name>[A-Za-z_][A-Za-z0-9_]*)(?P<modifier>:-|-)?(?P<default>[^}]*)\}"
+)
 
 _DB_TYPE_ALIASES: Dict[str, str] = {
     "oracle": "oracle",
@@ -91,6 +96,9 @@ class ToolConfig(BaseModel):
     output_formats: List[str] = Field(default_factory=lambda: ["json"])
     default_output_format: str = "json"
     metadata: Dict[str, Any] = Field(default_factory=dict)
+    default_template: Optional[str] = None
+    default_query: Optional[str] = None
+    default_parameters: Dict[str, Any] = Field(default_factory=dict)
     query_templates: Dict[str, str] = Field(default_factory=dict)
 
     @field_validator("output_formats", mode="before")
@@ -111,7 +119,16 @@ class ToolConfig(BaseModel):
             )
         self.default_output_format = self.default_output_format.lower()
         self.output_formats = [fmt.lower() for fmt in self.output_formats]
+        if self.default_query and self.default_template:
+            raise ValueError("Tool configuration cannot define both default_query and default_template")
         return self
+
+    @field_validator("default_template", "default_query")
+    @classmethod
+    def _strip_optional_strings(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return value.strip()
 
     @field_validator("query_templates")
     @classmethod
@@ -223,6 +240,29 @@ class ServerConfig(BaseModel):
         raise KeyError(name)
 
 
+def _expand_env_placeholders(value: str) -> str:
+    """Expand ${VAR}, ${VAR-default}, and ${VAR:-default} style placeholders."""
+
+    def replacer(match: re.Match[str]) -> str:
+        name = match.group("name")
+        modifier = match.group("modifier")
+        default = match.group("default") or ""
+        env_value = os.getenv(name)
+
+        if modifier is None:
+            return env_value if env_value is not None else ""
+
+        if env_value is None:
+            return default
+
+        if modifier == ":-" and env_value == "":
+            return default
+
+        return env_value
+
+    return _ENV_PLACEHOLDER_PATTERN.sub(replacer, value)
+
+
 def _resolve_env_values(value: Any) -> Any:
     """Recursively expand environment variables in the loaded configuration."""
 
@@ -230,7 +270,8 @@ def _resolve_env_values(value: Any) -> Any:
         if value.startswith("env:"):
             env_name = value.split(":", 1)[1]
             return os.getenv(env_name, "")
-        return os.path.expandvars(value)
+        expanded = os.path.expandvars(value)
+        return _expand_env_placeholders(expanded)
     if isinstance(value, list):
         return [_resolve_env_values(item) for item in value]
     if isinstance(value, dict):

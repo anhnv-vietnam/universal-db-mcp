@@ -6,6 +6,17 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y \
+        build-essential \
+        pkg-config \
+        libaio1t64 \
+        libmariadb-dev \
+        libmariadb-dev-compat \
+        libpq-dev \
+        sqlite3 \
+    && rm -rf /var/lib/apt/lists/*
+
 ARG INSTALL_DEV=false
 
 COPY pyproject.toml README.md ./

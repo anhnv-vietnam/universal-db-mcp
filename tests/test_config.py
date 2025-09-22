@@ -68,6 +68,30 @@ tools:
     assert config.get_database("main").connection_url.endswith("env.db")
 
 
+def test_environment_expansion_with_default(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("TEST_DATABASE_URL", raising=False)
+    config_path = write_config(
+        tmp_path / "config.yaml",
+        """
+server:
+  name: Env
+  protocols: [stdio]
+databases:
+  - name: main
+    type: sqlite
+    connection_url: ${TEST_DATABASE_URL:-sqlite+pysqlite:///./fallback.db}
+tools:
+  - name: run
+    database: main
+    allow_arbitrary_queries: true
+    output_formats: [json]
+    default_output_format: json
+""",
+    )
+    config = load_config(config_path)
+    assert config.get_database("main").connection_url.endswith("fallback.db")
+
+
 def test_invalid_database_type(tmp_path: Path):
     config_path = write_config(
         tmp_path / "config.yaml",

@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: universal-db-mcp
+  labels:
+    app: universal-db-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: universal-db-mcp
+  template:
+    metadata:
+      labels:
+        app: universal-db-mcp
+    spec:
+      containers:
+        - name: universal-db-mcp
+          image: acetateaerie0b/universal-db-mcp:v1.0.0
+          imagePullPolicy: IfNotPresent
+          args: ["--protocols", "http", "sse"]
+          env:
+            - name: UNIVERSAL_DB_MCP_CONFIG
+              value: /app/config/default.yaml
+          ports:
+            - name: http
+              containerPort: 8000
+            - name: sse
+              containerPort: 8001
+          volumeMounts:
+            - name: config-volume
+              mountPath: /app/config
+              readOnly: true
+      volumes:
+        - name: config-volume
+          configMap:
+            name: universal-db-mcp-config
+            items:
+              - key: default.yaml
+                path: default.yaml

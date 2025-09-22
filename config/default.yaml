@@ -19,7 +19,7 @@ server:
     - sse
 
 http:
-  host: "127.0.0.1"
+  host: "0.0.0.0"
   port: 8000
   message_path: "/messages/"
   streamable_http_path: "/mcp"
@@ -30,14 +30,14 @@ http:
     password_env: "UNIVERSAL_DB_MCP_HTTP_PASSWORD"
 
 sse:
-  host: "127.0.0.1"
+  host: "0.0.0.0"
   port: 8001
   path: "/sse"
 
 # The set of databases that tools may reference.
 databases:
   - name: "analytics"
-    type: "postgresql"
+    type: "sqlite"
     # For local development we default to an on-disk SQLite database. Production deployments
     # should replace this with a driver specific URL such as:
     #   oracle+cx_oracle://user:password@host:1521/service
@@ -53,6 +53,24 @@ databases:
         FROM customers
         WHERE total_spend >= :minimum_spend
         ORDER BY total_spend DESC
+  - name: "testing"
+    type: "sqlite"
+    # Lightweight database used for automated tests and local smoke checks.
+    connection_url: "${UNIVERSAL_DB_MCP_DB_TESTING:-sqlite+pysqlite:////app/config/testing.db}"
+    pool:
+      enabled: false
+    metadata:
+      environment: "test"
+    query_templates:
+      list_test_records: |
+        SELECT id, name, category, value, created_at
+        FROM test_records
+        ORDER BY created_at DESC
+      list_test_records_by_category: |
+        SELECT id, name, category, value, created_at
+        FROM test_records
+        WHERE category = :category
+        ORDER BY created_at DESC
 
 # Tools exposed by the server. Each tool may reference one or more query templates.
 tools:
@@ -63,15 +81,51 @@ tools:
       providing a template name and parameters to avoid unsafe string interpolation.
     database: "analytics"
     allow_arbitrary_queries: true
-    supported_databases: ["analytics"]
+    supported_databases: ["analytics", "testing"]
     output_formats: ["json", "csv"]
     default_output_format: "json"
     metadata:
       category: "database"
       maturity: "beta"
+    default_template: "high_spenders"
+    default_parameters:
+      minimum_spend: 0
     query_templates:
       high_spenders: |
         SELECT id, name, total_spend
         FROM customers
         WHERE total_spend >= :minimum_spend
         ORDER BY total_spend DESC
+  - name: "inspect_testing_records"
+    title: "List Test Records"
+    description: "Retrieve seeded rows from the testing SQLite database."
+    database: "testing"
+    allow_arbitrary_queries: false
+    supported_databases: ["testing"]
+    output_formats: ["json", "csv"]
+    default_output_format: "json"
+    default_template: "list_test_records"
+    query_templates:
+      list_test_records: |
+        SELECT id, name, category, value, created_at
+        FROM test_records
+        ORDER BY created_at DESC
+      list_test_records_by_category: |
+        SELECT id, name, category, value, created_at
+        FROM test_records
+        WHERE category = :category
+        ORDER BY created_at DESC
+  - name: "test_anhnv176"
+    title: "List Test Records"
+    description: "Retrieve seeded rows from the testing SQLite database."
+    database: "testing"
+    allow_arbitrary_queries: false
+    supported_databases: ["testing"]
+    output_formats: ["json", "csv"]
+    default_output_format: "csv"
+    default_query: |
+      SELECT *
+      FROM test_records
+    metadata:
+      category: "database"
+      maturity: "alpha"

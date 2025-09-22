@@ -15,7 +15,7 @@ from .database import DatabaseError, DatabaseManager, QueryResult
 logger = logging.getLogger(__name__)
 
 
-def format_query_result(result: QueryResult, output_format: str) -> Dict[str, Any]:
+def format_query_result(result: QueryResult, output_format: str) -> Any:
     """Format query results into the requested representation."""
 
     fmt = output_format.lower()
@@ -32,13 +32,7 @@ def format_query_result(result: QueryResult, output_format: str) -> Dict[str, An
             writer = csv.DictWriter(buffer, fieldnames=result.columns)
             writer.writeheader()
             writer.writerows(result.rows)
-        csv_output = buffer.getvalue()
-        return {
-            "format": "csv",
-            "columns": result.columns,
-            "row_count": result.rowcount,
-            "csv": csv_output,
-        }
+        return buffer.getvalue()
     raise ValueError(f"Unsupported output format '{output_format}'. Available formats: json, csv")
 
 
@@ -65,7 +59,7 @@ class SQLExecutionTool:
             database: Optional[str] = None,
             output_format: Optional[str] = None,
             async_execution: bool = True,
-        ) -> Dict[str, Any]:
+        ) -> Dict[str, Any] | str:
             """Execute a SQL query or template against one of the configured databases."""
 
             db_name = (database or self.config.database).strip()
@@ -83,16 +77,25 @@ class SQLExecutionTool:
             if query and template:
                 raise ValueError("Provide either a raw query or a template, not both")
 
+            chosen_template: Optional[str]
+
             if query:
                 if not self.config.allow_arbitrary_queries:
                     raise ValueError("Raw SQL queries are disabled for this tool")
                 sql = query.strip()
-            elif template:
-                sql = self._resolve_template(db_name, template)
+                chosen_template = None
             else:
-                raise ValueError("Either 'query' or 'template' must be supplied")
+                chosen_template = (template.strip() if template else None) or self.config.default_template
+                if chosen_template:
+                    sql = self._resolve_template(db_name, chosen_template)
+                elif self.config.default_query:
+                    sql = self.config.default_query
+                else:
+                    raise ValueError("Either 'query' or 'template' must be supplied")
 
-            params = dict(parameters or {})
+            params: Dict[str, Any] = dict(self.config.default_parameters)
+            if parameters:
+                params.update(dict(parameters))
 
             try:
                 context = get_context()
@@ -102,7 +105,7 @@ class SQLExecutionTool:
             if context is not None:
                 await context.info(
                     "Executing SQL query",
-                    extra={"database": db_name, "template": template, "query": sql},
+                    extra={"database": db_name, "template": chosen_template, "query": sql},
                 )
 
             try:
@@ -114,13 +117,17 @@ class SQLExecutionTool:
                 logger.exception("Database execution failed", extra={"database": db_name})
                 raise RuntimeError(str(exc)) from exc
 
-            formatted = format_query_result(result, chosen_format)
-            formatted.update({
+            payload = format_query_result(result, chosen_format)
+            if chosen_format == "csv":
+                return payload
+
+            payload.update({
                 "database": db_name,
                 "query": sql,
+                "template": chosen_template,
                 "parameters": params,
             })
-            return formatted
+            return payload
 
     def _resolve_template(self, database: str, template_name: str) -> str:
         template_key = template_name.strip()
